@@ -243,8 +243,18 @@ func (c *Controller) IsLoggedIn(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	isLoggedIn := userCfg.Token != ""
-	return isLoggedIn, nil
+
+	// No token, no need to try fetching user. Just return immediately
+	if userCfg.Token == "" {
+		return false, nil
+	}
+
+	// If have token, check if we can actually get a user with it
+	if _, err = c.GetUser(ctx); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (c *Controller) ConfirmBrowserOpen(spinnerMsg string, url string) error {
