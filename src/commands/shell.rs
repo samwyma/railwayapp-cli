@@ -4,6 +4,18 @@ use crate::consts::SERVICE_NOT_FOUND;
 
 use super::*;
 
+use winapi::shared::minwindef::DWORD;
+use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+use winapi::um::processthreadsapi::GetCurrentProcessId;
+use winapi::um::tlhelp32::{
+    CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+};
+
+extern crate winapi;
+
+use std::ffi::CStr;
+use std::mem::zeroed;
+
 /// Open a subshell with Railway variables available
 #[derive(Parser)]
 pub struct Args {
@@ -73,20 +85,124 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         eprintln!("No service linked, skipping service variables");
     }
 
+    enum WindowsShell {
+        Cmd,
+        Powershell,
+        Powershell7,
+    }
+
+    /// https://gist.github.com/mattn/253013/d47b90159cf8ffa4d92448614b748aa1d235ebe4
+    /// Only matches cmd, powershell or pwsh for safety
+    /// defaults to cmd if no parent process is found
+    async fn windows_shell_detection() -> Option<WindowsShell> {
+        let (_, ppname) = get_parent_process_info()
+            .context("Failed to get parent process info")
+            .unwrap();
+
+        if ppname.contains("pwsh") {
+            Some(WindowsShell::Powershell7)
+        } else if ppname.contains("powershell") {
+            Some(WindowsShell::Powershell)
+        } else {
+            Some(WindowsShell::Cmd)
+        }
+    }
+
     let shell = std::env::var("SHELL").unwrap_or(match std::env::consts::OS {
-        "windows" => "cmd".to_string(),
+        "windows" => match windows_shell_detection().await {
+            Some(WindowsShell::Powershell) => "powershell".to_string(),
+            Some(WindowsShell::Cmd) => "cmd".to_string(),
+            Some(WindowsShell::Powershell7) => "pwsh".to_string(),
+            None => "cmd".to_string(),
+        },
         _ => "sh".to_string(),
     });
 
-    println!("Entering subshell with Railway variables available. Type 'exit' to exit.");
+    let shell_options = match shell.as_str() {
+        "powershell" => vec!["/nologo"],
+        "pwsh" => vec!["/nologo"],
+        "cmd" => vec!["/k"],
+        _ => vec![],
+    };
+
+    println!("Entering subshell with Railway variables available. Type 'exit' to exit.\n");
 
     tokio::process::Command::new(shell)
+        .args(shell_options)
         .envs(all_variables)
         .spawn()
         .context("Failed to spawn command")?
         .wait()
         .await
         .context("Failed to wait for command")?;
+
     println!("Exited subshell, Railway variables no longer available.");
     Ok(())
+}
+
+/// get the parent process info, translated from
+// https://gist.github.com/mattn/253013/d47b90159cf8ffa4d92448614b748aa1d235ebe4
+fn get_parent_process_info() -> Option<(DWORD, String)> {
+    let mut pe32: PROCESSENTRY32 = unsafe { zeroed() };
+    let pid = unsafe { GetCurrentProcessId() };
+    let h_snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    let mut ppid = 0;
+
+    if h_snapshot == INVALID_HANDLE_VALUE {
+        return None;
+    }
+
+    pe32.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+
+    if unsafe { Process32First(h_snapshot, &mut pe32) } != 0 {
+        loop {
+            if pe32.th32ProcessID == pid {
+                ppid = pe32.th32ParentProcessID;
+                break;
+            }
+            if unsafe { Process32Next(h_snapshot, &mut pe32) } == 0 {
+                break;
+            }
+        }
+    }
+
+    let mut parent_process_name = None;
+    if ppid != 0 {
+        parent_process_name = get_process_name(ppid);
+    }
+
+    unsafe { CloseHandle(h_snapshot) };
+
+    if let Some(ppname) = parent_process_name {
+        Some((ppid, ppname))
+    } else {
+        None
+    }
+}
+fn get_process_name(pid: DWORD) -> Option<String> {
+    let mut pe32: PROCESSENTRY32 = unsafe { zeroed() };
+    let h_snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+
+    if h_snapshot == INVALID_HANDLE_VALUE {
+        return None;
+    }
+
+    pe32.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+
+    if unsafe { Process32First(h_snapshot, &mut pe32) } != 0 {
+        loop {
+            if pe32.th32ProcessID == pid {
+                let process_name_cstr = unsafe { CStr::from_ptr(pe32.szExeFile.as_ptr()) };
+                let process_name = process_name_cstr.to_string_lossy().into_owned();
+                unsafe { CloseHandle(h_snapshot) };
+                return Some(process_name);
+            }
+            if unsafe { Process32Next(h_snapshot, &mut pe32) } == 0 {
+                break;
+            }
+        }
+    }
+
+    unsafe { CloseHandle(h_snapshot) };
+    None
 }
