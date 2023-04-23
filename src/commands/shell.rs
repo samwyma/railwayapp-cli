@@ -4,16 +4,24 @@ use crate::consts::SERVICE_NOT_FOUND;
 
 use super::*;
 
+/// winapi is only used on windows
+#[cfg(target_os = "windows")]
+extern crate winapi;
+#[cfg(target_os = "windows")]
 use winapi::shared::minwindef::DWORD;
+#[cfg(target_os = "windows")]
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+#[cfg(target_os = "windows")]
 use winapi::um::processthreadsapi::GetCurrentProcessId;
+#[cfg(target_os = "windows")]
 use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
 };
 
-extern crate winapi;
-
+/// memory management helpers are also only used on windows
+#[cfg(target_os = "windows")]
 use std::ffi::CStr;
+#[cfg(target_os = "windows")]
 use std::mem::zeroed;
 
 /// Open a subshell with Railway variables available
@@ -85,27 +93,42 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         eprintln!("No service linked, skipping service variables");
     }
 
+    // disable dead code warning for windows_shell_detection
+    #[allow(dead_code)]
     enum WindowsShell {
         Cmd,
         Powershell,
         Powershell7,
+        NuShell,
+        ElvSh,
     }
 
     /// https://gist.github.com/mattn/253013/d47b90159cf8ffa4d92448614b748aa1d235ebe4
     /// Only matches cmd, powershell or pwsh for safety
     /// defaults to cmd if no parent process is found
+    #[cfg(target_os = "windows")]
     async fn windows_shell_detection() -> Option<WindowsShell> {
-        let (_, ppname) = get_parent_process_info()
-            .context("Failed to get parent process info")
-            .unwrap();
+        let (_, ppname) = unsafe {
+            get_parent_process_info()
+                .context("Failed to get parent process info")
+                .unwrap_or_else(|_| (0, "".to_string()))
+        };
 
-        if ppname.contains("pwsh") {
-            Some(WindowsShell::Powershell7)
-        } else if ppname.contains("powershell") {
-            Some(WindowsShell::Powershell)
-        } else {
-            Some(WindowsShell::Cmd)
+        let ppname = ppname.split(".").next().unwrap_or("cmd");
+
+        match ppname {
+            "cmd" => Some(WindowsShell::Cmd),
+            "powershell" => Some(WindowsShell::Powershell),
+            "pwsh" => Some(WindowsShell::Powershell7),
+            "nu" => Some(WindowsShell::NuShell),
+            "elvish" => Some(WindowsShell::ElvSh),
+            _ => None,
         }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    async fn windows_shell_detection() -> Option<WindowsShell> {
+        None
     }
 
     let shell = std::env::var("SHELL").unwrap_or(match std::env::consts::OS {
@@ -113,6 +136,8 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
             Some(WindowsShell::Powershell) => "powershell".to_string(),
             Some(WindowsShell::Cmd) => "cmd".to_string(),
             Some(WindowsShell::Powershell7) => "pwsh".to_string(),
+            Some(WindowsShell::NuShell) => "nu".to_string(),
+            Some(WindowsShell::ElvSh) => "elvish".to_string(),
             None => "cmd".to_string(),
         },
         _ => "sh".to_string(),
@@ -142,7 +167,8 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
 
 /// get the parent process info, translated from
 // https://gist.github.com/mattn/253013/d47b90159cf8ffa4d92448614b748aa1d235ebe4
-fn get_parent_process_info() -> Option<(DWORD, String)> {
+#[cfg(target_os = "windows")]
+unsafe fn get_parent_process_info() -> Option<(DWORD, String)> {
     let mut pe32: PROCESSENTRY32 = unsafe { zeroed() };
     let pid = unsafe { GetCurrentProcessId() };
     let h_snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
@@ -179,7 +205,9 @@ fn get_parent_process_info() -> Option<(DWORD, String)> {
         None
     }
 }
-fn get_process_name(pid: DWORD) -> Option<String> {
+
+#[cfg(target_os = "windows")]
+unsafe fn get_process_name(pid: DWORD) -> Option<String> {
     let mut pe32: PROCESSENTRY32 = unsafe { zeroed() };
     let h_snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
 
