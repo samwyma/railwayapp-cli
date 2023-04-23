@@ -144,24 +144,22 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         // this is for `rails c` and similar REPLs
     })?;
 
-    let slash_c = "/C".to_owned();
-    let mut args = args.args.iter().collect::<Vec<_>>();
+    let mut args = args.args.iter().map(|s| s.as_str()).collect::<Vec<_>>();
     if args.is_empty() {
         bail!("No command provided");
     }
 
-    let child_process_name: &str;
-
-    match std::env::consts::OS {
+    // So the linter doesn't get mad. I think this is pretty ugly.
+    let child_process_name = match std::env::consts::OS {
         "windows" => {
-            args.insert(0, &slash_c);
-            child_process_name = "cmd"
+            args.insert(0, "/C");
+            "cmd"
         }
         _ => {
             args.remove(0);
-            child_process_name = args.first().context("No command provided")?
+            args.first().context("No command provided")?
         }
-    }
+    };
 
     let exit_status = tokio::process::Command::new(child_process_name)
         .args(args)
