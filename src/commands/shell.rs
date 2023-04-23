@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::consts::SERVICE_NOT_FOUND;
+use crate::controllers::variables::get_service_variables;
 
 use super::*;
 
@@ -36,39 +37,27 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
             .find(|s| s.node.name == service || s.node.id == service)
             .context(SERVICE_NOT_FOUND)?;
 
-        let vars = queries::variables_for_service_deployment::Variables {
-            environment_id: linked_project.environment.clone(),
-            project_id: linked_project.project.clone(),
-            service_id: service_id.node.id.clone(),
-        };
-
-        let res = post_graphql::<queries::VariablesForServiceDeployment, _>(
+        let service_variables = get_service_variables(
             &client,
-            configs.get_backboard(),
-            vars,
+            &configs,
+            linked_project.project.clone(),
+            linked_project.environment,
+            service_id.node.id.clone(),
         )
         .await?;
 
-        let mut body = res.data.context("Failed to retrieve response body")?;
-
-        all_variables.append(&mut body.variables_for_service_deployment);
+        all_variables.extend(service_variables);
     } else if let Some(service) = linked_project.service {
-        let vars = queries::variables_for_service_deployment::Variables {
-            environment_id: linked_project.environment.clone(),
-            project_id: linked_project.project.clone(),
-            service_id: service.clone(),
-        };
-
-        let res = post_graphql::<queries::VariablesForServiceDeployment, _>(
+        let service_variables = get_service_variables(
             &client,
-            configs.get_backboard(),
-            vars,
+            &configs,
+            linked_project.project.clone(),
+            linked_project.environment,
+            service.clone(),
         )
         .await?;
 
-        let mut body = res.data.context("Failed to retrieve response body")?;
-
-        all_variables.append(&mut body.variables_for_service_deployment);
+        all_variables.extend(service_variables);
     } else {
         eprintln!("No service linked, skipping service variables");
     }
