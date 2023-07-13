@@ -3,7 +3,7 @@ use crate::{
     errors::RailwayError,
 };
 use anyhow::Result;
-
+/// environment: environment ID *or* Name
 pub fn get_matched_environment(
     project: &RailwayProject,
     environment: String,

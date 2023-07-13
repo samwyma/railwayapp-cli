@@ -70,6 +70,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
 
     let pass_arg; // Hack to get ownership of formatted string outside match
     let default = &"".to_string();
+    // TODO: 97% sure this will break with no explanation if any of the following variables are missing
     let (cmd_name, args): (&str, Vec<&str>) = match &plugin.name {
         PluginType::postgresql => (
             "psql",

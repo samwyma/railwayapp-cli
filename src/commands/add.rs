@@ -43,7 +43,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
 
     let selected = if !std::io::stdout().is_terminal() || !args.plugin.is_empty() {
         if args.plugin.is_empty() {
-            bail!("No plugins specified");
+            bail!("No plugins specified\nSpecify one with `railway add -p <PLUGIN>");
         }
         let filtered: Vec<_> = args
             .plugin

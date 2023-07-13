@@ -7,6 +7,9 @@ use crate::{controllers::project::get_project, interact_or, util::prompt::prompt
 
 use super::{queries::project::ProjectProjectEnvironmentsEdgesNode, *};
 
+// TODO: Specify convention for argument naming scheme, e.g. `environment` or `environment_id` ?
+// This commmand akss for `environment` but is really asking for an environment id.
+
 /// Change the active environment
 #[derive(Parser)]
 pub struct Args {
@@ -38,7 +41,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         }
         // If the environment is not specified, prompt the user to select one
         None => {
-            interact_or!("Environment must be specified when not running in a terminal");
+            interact_or!("Environment must be specified when not running in a terminal\n`railway environment <ENVIRONMENT>`");
             let environment = if environments.len() == 1 {
                 match environments.first() {
                     // Project has only one environment, so use that one
