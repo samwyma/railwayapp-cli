@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 use crate::{controllers::project::get_project, errors::RailwayError};
 
 use super::*;
+use clap::ArgEnum;
+use clap::{self, Parser, ValueEnum};
 
 /// winapi is only used on windows
 #[cfg(target_os = "windows")]
@@ -24,19 +26,67 @@ use std::ffi::CStr;
 use std::mem::zeroed;
 
 /// Open a subshell with Railway variables available
-#[derive(Parser)]
+#[derive(Parser, Debug, PartialEq)]
 pub struct Args {
     /// Service to pull variables from (defaults to linked service)
     #[clap(short, long)]
     service: Option<String>,
 
     /// Open shell without banner
-    #[clap(long)]
-    silent: bool,
+    #[clap(long, arg_enum)]
+    silent: SilentOption,
 }
 
+fn parse_bool(s: &str) -> Result<bool, &'static str> {
+    match s {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err("Invalid boolean value"),
+    }
+}
+
+#[derive(ArgEnum, Parser, Debug, PartialEq, Clone, Copy)]
+enum SilentOption {
+    True,
+    False,
+    Unspecified,
+}
+
+impl Default for SilentOption {
+    fn default() -> Self {
+        SilentOption::Unspecified
+    }
+}
+
+impl From<SilentOption> for Option<bool> {
+    fn from(s: SilentOption) -> Self {
+        match s {
+            SilentOption::True => Some(true),
+            SilentOption::False => Some(false),
+            SilentOption::Unspecified => None,
+        }
+    }
+}
 pub async fn command(args: Args, _json: bool) -> Result<()> {
     let configs = Configs::new()?;
+    let settings = configs.settings()?;
+
+    let silent = if let Some(silent) = args.silent {
+        silent
+    } else {
+        settings
+            .shell
+            .as_ref()
+            .map(|s| s.silent)
+            .flatten()
+            .unwrap_or(false)
+    };
+
+    if "a" == "a" {
+        println!("{}", silent);
+        std::process::exit(0);
+    }
+
     let client = GQLClient::new_authorized(&configs)?;
     let linked_project = configs.get_linked_project().await?;
 
@@ -103,7 +153,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         _ => vec![],
     };
 
-    if !args.silent {
+    if !silent {
         println!("Entering subshell with Railway variables available. Type 'exit' to exit.\n");
     }
 
@@ -122,7 +172,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         .await
         .context("Failed to wait for command")?;
 
-    if !args.silent {
+    if !silent {
         println!("Exited subshell, Railway variables no longer available.");
     }
     Ok(())

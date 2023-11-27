@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.69"
-clap = { version = "4.1.9", features = ["derive", "suggestions"] }
+clap = { version = "4.4.8", features = ["derive", "suggestions"] }
 colored = "2.0.0"
 dirs = "4.0.0"
 serde = { version = "1.0.156", features = ["derive"] }
@@ -68,4 +68,10 @@ serde_with = "2.3.1"
 ctrlc = "3.2.5"
 which = "4.4.0"
 thiserror = "1.0.40"
-winapi = {version="0.3.9", features = ["minwindef", "tlhelp32", "processthreadsapi", "handleapi", "winerror"]}
+winapi = { version = "0.3.9", features = [
+  "minwindef",
+  "tlhelp32",
+  "processthreadsapi",
+  "handleapi",
+  "winerror",
+] }

@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use inquire::ui::{Attributes, RenderConfig, StyleSheet, Styled};
 use serde::{Deserialize, Serialize};
@@ -39,9 +39,32 @@ pub struct RailwayUser {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde_with::skip_serializing_none]
 #[serde(rename_all = "camelCase")]
+pub struct Shell {
+    pub silent: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde_with::skip_serializing_none]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    pub shell: Option<Shell>,
+}
+
+impl Settings {
+    pub fn default() -> Self {
+        Self {
+            shell: Some(Shell { silent: None }),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde_with::skip_serializing_none]
+#[serde(rename_all = "camelCase")]
 pub struct RailwayConfig {
     pub projects: BTreeMap<String, LinkedProject>,
     pub user: RailwayUser,
+    pub settings: Option<Settings>,
 }
 
 #[derive(Debug)]
@@ -58,6 +81,16 @@ pub enum Environment {
 }
 
 impl Configs {
+    pub fn settings(&self) -> anyhow::Result<&Settings> {
+        let settings = self.root_config.settings.as_ref();
+
+        if let Some(settings) = settings {
+            Ok(settings)
+        } else {
+            Err(anyhow!("Unable to get settings"))
+        }
+    }
+
     pub fn new() -> Result<Self> {
         let environment = Self::get_environment_id();
         let root_config_partial_path = match environment {
@@ -79,6 +112,7 @@ impl Configs {
                     RailwayConfig {
                         projects: BTreeMap::new(),
                         user: RailwayUser { token: None },
+                        settings: Some(Settings::default()),
                     }
                 });
 
@@ -95,6 +129,7 @@ impl Configs {
             root_config: RailwayConfig {
                 projects: BTreeMap::new(),
                 user: RailwayUser { token: None },
+                settings: Some(Settings::default()),
             },
         })
     }
@@ -103,6 +138,7 @@ impl Configs {
         self.root_config = RailwayConfig {
             projects: BTreeMap::new(),
             user: RailwayUser { token: None },
+            settings: Some(Settings::default()),
         };
         Ok(())
     }
