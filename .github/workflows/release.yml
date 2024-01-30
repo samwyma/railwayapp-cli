@@ -6,48 +6,8 @@ env:
   MACOSX_DEPLOYMENT_TARGET: 10.7
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      railway_version: ${{ env.CLI_VERSION }}
-
-    steps:
-      - name: Get the release version from the tag
-        shell: bash
-        if: env.CLI_VERSION == ''
-        run: |
-          # Apparently, this is the right way to get a tag name. Really?
-          #
-          # See: https://github.community/t5/GitHub-Actions/How-to-get-just-the-tag-name/m-p/32167/highlight/true#M1027
-          echo "CLI_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "version is: ${{ env.CLI_VERSION }}"
-
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
-
-      - name: Build Changelog
-        id: build_changelog
-        uses: mikepenz/release-changelog-builder-action@v3.7.0
-        with:
-          configuration: ".github/changelog-configuration.json"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub release
-        id: release
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.CLI_VERSION }}
-          name: ${{ env.CLI_VERSION }}
-
   build-release:
     name: Build Release Assets
-    needs: ["create-release"]
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
