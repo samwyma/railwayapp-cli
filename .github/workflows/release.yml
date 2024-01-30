@@ -71,6 +71,4 @@ jobs:
 
       - name: Show sample
         run: |
-          du -sh target/${{ matrix.target }}/release
-          du target/${{ matrix.target }}/release
-          ls target/${{ matrix.target }}/release
+          ls -l target/${{ matrix.target }}/release
