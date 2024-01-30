@@ -108,3 +108,9 @@ jobs:
           command: build
           args: --release --locked --target ${{ matrix.target }}
           use-cross: ${{ matrix.use-cross || matrix.os == 'ubuntu-latest' }}
+
+      - name: Show sample
+        run: |
+          du -sh target/${{ matrix.target }}/release
+          du target/${{ matrix.target }}/release
+          ls target/${{ matrix.target }}/release
