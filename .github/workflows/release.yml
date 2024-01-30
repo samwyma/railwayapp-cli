@@ -1,8 +1,7 @@
 name: Release
 on:
   push:
-    tags:
-      - "v*.*.*"
+
 env:
   MACOSX_DEPLOYMENT_TARGET: 10.7
 
@@ -109,62 +108,3 @@ jobs:
           command: build
           args: --release --locked --target ${{ matrix.target }}
           use-cross: ${{ matrix.use-cross || matrix.os == 'ubuntu-latest' }}
-
-      - name: Prepare binaries (zip) [Windows]
-        if: matrix.os == 'windows-latest'
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip railway.exe
-          7z a ../../../railway-${{ needs.create-release.outputs.railway_version }}-${{ matrix.target }}.zip railway.exe
-          cd -
-
-      - name: Prepare binaries (tar) [Windows]
-        if: matrix.os == 'windows-latest'
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip railway.exe
-          7z a -ttar archive.tar railway.exe
-          7z a -tgzip ../../../railway-${{ needs.create-release.outputs.railway_version }}-${{ matrix.target }}.tar.gz archive.tar
-          cd -
-
-      - name: Prepare binaries [-linux]
-        if: matrix.os != 'windows-latest'
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip railway || true
-          tar czvf ../../../railway-${{ needs.create-release.outputs.railway_version }}-${{ matrix.target }}.tar.gz railway
-          cd -
-
-      - name: Upload release archive
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ needs.create-release.outputs.railway_version }}
-          files: railway-${{ needs.create-release.outputs.railway_version }}-${{ matrix.target }}*
-
-      - name: Install cargo-deb
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: cargo install cargo-deb
-
-      - name: Generate .deb package file
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: cargo deb --target x86_64-unknown-linux-musl --output railway-${{ needs.create-release.outputs.railway_version }}-amd64.deb
-
-      - name: Upload .deb package file
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        uses: svenstaro/upload-release-action@v2
-        with:
-          tag: ${{ needs.create-release.outputs.railway_version }}
-          file: railway-${{ needs.create-release.outputs.railway_version }}-amd64.deb
-
-      - name: Update homebrew tap
-        uses: mislav/bump-homebrew-formula-action@v2
-        if: "matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin' && !contains(github.ref, '-')"
-        with:
-          formula-name: rlwy
-          formula-path: rlwy.rb
-          homebrew-tap: railwayapp/homebrew-tap
-          download-url: https://github.com/railwayapp/cli/releases/latest/download/railway-${{ needs.create-release.outputs.railway_version }}-${{ matrix.target }}.tar.gz
-        env:
-          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
