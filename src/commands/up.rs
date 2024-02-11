@@ -298,8 +298,8 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
         return Ok(());
     }
 
-    // If the user is not in a terminal, don't stream logs
-    if !std::io::stdout().is_terminal() {
+    // If the user is not in a terminal, don't stream logs, but force stream logs when in CI
+    if !args.cicd && !std::io::stdout().is_terminal() {
         return Ok(());
     }
 
