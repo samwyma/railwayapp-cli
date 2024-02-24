@@ -16,7 +16,8 @@ impl GQLClient {
         let mut headers = HeaderMap::new();
         if let Some(token) = &Configs::get_railway_token() {
             headers.insert("project-access-token", HeaderValue::from_str(token)?);
-        } else if let Some(token) = &Configs::get_railway_api_token() {
+        }
+        if let Some(token) = &Configs::get_railway_api_token() {
             headers.insert(
                 "authorization",
                 HeaderValue::from_str(&format!("Bearer {token}"))?,

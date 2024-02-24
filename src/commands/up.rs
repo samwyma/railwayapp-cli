@@ -344,6 +344,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
             },
             Err(e) => {
                 eprintln!("Failed to fetch deployment status: {}", e);
+                std::process::exit(1);
             }
         }
     });
@@ -358,13 +359,16 @@ async fn wait_for_exit_reason(deployment_id: String) -> Result<UpExitReason, any
     let client = GQLClient::new_authorized(&configs)?;
 
     loop {
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        if let Ok(deployment) = get_deployment(&client, &configs, deployment_id.clone()).await {
-            match deployment.status {
+        match get_deployment(&client, &configs, deployment_id.clone()).await {
+            Ok(deployment) => match deployment.status {
                 DeploymentStatus::SUCCESS => return Ok(UpExitReason::Deployed),
                 DeploymentStatus::FAILED => return Ok(UpExitReason::Failed),
                 _ => {}
+            },
+            Err(e) => {
+                return Err(anyhow::Error::new(e));
             }
         }
     }
