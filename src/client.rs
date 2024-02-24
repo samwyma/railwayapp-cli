@@ -30,7 +30,8 @@ impl GQLClient {
                 "authorization",
                 HeaderValue::from_str(&format!("Bearer {token}"))?,
             );
-        } else {
+        }
+        if !headers.contains_key("authorization") && !headers.contains_key("project-access-token") {
             return Err(RailwayError::Unauthorized);
         }
         headers.insert(
