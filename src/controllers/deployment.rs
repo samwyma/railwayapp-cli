@@ -10,7 +10,7 @@ use crate::{
     errors::RailwayError,
     subscription::subscribe_graphql,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::StreamExt;
 
 pub async fn get_deployment(
@@ -39,9 +39,15 @@ pub async fn stream_build_logs(
 
     let (_client, mut stream) = subscribe_graphql::<subscriptions::BuildLogs>(vars).await?;
     while let Some(Ok(log)) = stream.next().await {
-        let log = log.data.context("Failed to retrieve build log")?;
-        for line in log.build_logs {
-            on_log(line);
+        if let Some(err_vec) = log.errors {
+            for err in err_vec {
+                return Err(anyhow!(err.message));
+            }
+        }
+        if let Some(log) = log.data {
+            for line in log.build_logs {
+                on_log(line);
+            }
         }
     }
 
