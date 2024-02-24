@@ -313,6 +313,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
             stream_build_logs(build_deployment_id, |log| println!("{}", log.message)).await
         {
             eprintln!("Failed to stream build logs: {}", e);
+            std::process::exit(1);
         }
     })];
 
@@ -323,6 +324,7 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
                 stream_deploy_logs(deploy_deployment_id, |log| println!("{}", log.message)).await
             {
                 eprintln!("Failed to stream deploy logs: {}", e);
+                std::process::exit(1);
             }
         }));
     }
