@@ -16,16 +16,16 @@ impl GQLClient {
         let mut headers = HeaderMap::new();
         if let Some(token) = &Configs::get_railway_token() {
             headers.insert("project-access-token", HeaderValue::from_str(token)?);
-        }
-        if let Some(token) = &Configs::get_railway_api_token() {
-            headers.insert(
-                "authorization",
-                HeaderValue::from_str(&format!("Bearer {token}"))?,
-            );
         } else if let Some(token) = &configs.root_config.user.token {
             if token.is_empty() {
                 return Err(RailwayError::Unauthorized);
             }
+            headers.insert(
+                "authorization",
+                HeaderValue::from_str(&format!("Bearer {token}"))?,
+            );
+        }
+        if let Some(token) = &Configs::get_railway_api_token() {
             headers.insert(
                 "authorization",
                 HeaderValue::from_str(&format!("Bearer {token}"))?,
