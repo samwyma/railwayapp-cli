@@ -70,6 +70,12 @@ enum UpExitReason {
     Failed,
 }
 
+enum BuildStartExitReason {
+    Building,
+    Deployed,
+    Failed,
+}
+
 pub async fn get_service_to_deploy(
     configs: &Configs,
     client: &Client,
@@ -306,6 +312,27 @@ pub async fn command(args: Args, _json: bool) -> Result<()> {
     let build_deployment_id = deployment_id.clone();
     let deploy_deployment_id = deployment_id.clone();
 
+    // Must wait otherwise sometimes the log stream will start before the deployment is ready
+    match wait_for_build_start(deployment_id.clone()).await {
+        Ok(reason) => match reason {
+            BuildStartExitReason::Deployed => {
+                if args.cicd {
+                    println!("{}", "Deploy complete".green().bold());
+                    std::process::exit(0);
+                }
+            }
+            BuildStartExitReason::Failed => {
+                println!("{}", "Build failed".red().bold());
+                std::process::exit(1);
+            }
+            _ => {}
+        },
+        Err(e) => {
+            eprintln!("Failed to wait for deployment start: {}", e);
+            std::process::exit(1);
+        }
+    }
+
     //	Create vector of log streaming tasks
     //	Always stream build logs
     let mut tasks = vec![tokio::task::spawn(async move {
@@ -367,6 +394,29 @@ async fn wait_for_exit_reason(deployment_id: String) -> Result<UpExitReason, any
             Ok(deployment) => match deployment.status {
                 DeploymentStatus::SUCCESS => return Ok(UpExitReason::Deployed),
                 DeploymentStatus::FAILED => return Ok(UpExitReason::Failed),
+                _ => {}
+            },
+            Err(e) => {
+                return Err(anyhow::Error::new(e));
+            }
+        }
+    }
+}
+
+async fn wait_for_build_start(
+    deployment_id: String,
+) -> Result<BuildStartExitReason, anyhow::Error> {
+    let configs = Configs::new()?;
+    let client = GQLClient::new_authorized(&configs)?;
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        match get_deployment(&client, &configs, deployment_id.clone()).await {
+            Ok(deployment) => match deployment.status {
+                DeploymentStatus::BUILDING => return Ok(BuildStartExitReason::Building),
+                DeploymentStatus::SUCCESS => return Ok(BuildStartExitReason::Deployed),
+                DeploymentStatus::FAILED => return Ok(BuildStartExitReason::Failed),
                 _ => {}
             },
             Err(e) => {
